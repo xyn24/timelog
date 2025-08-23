@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}任务管理 - TimeLog{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 当前任务状态 -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-activity"></i> 当前任务
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="current-task-display">
+                    {% if current_session %}
+                    <div class="alert alert-success">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="alert-heading">
+                                    <i class="bi bi-play-circle-fill"></i> 正在进行
+                                </h6>
+                                <p class="mb-1"><strong>{{ current_session.task }}</strong></p>
+                                <p class="mb-1">
+                                    {% if current_session.category == 'study' %}
+                                        <span class="badge bg-success">📚 学习</span>
+                                    {% elif current_session.category == 'game' %}
+                                        <span class="badge bg-warning">🎮 游戏</span>
+                                    {% else %}
+                                        <span class="badge bg-info">📋 其他</span>
+                                    {% endif %}
+                                </p>
+                                <p class="mb-0">
+                                    <small class="text-muted">
+                                        开始于 {{ current_session.start_time }} | 
+                                        已进行 <span id="duration-display">{{ current_session.duration }}</span> 分钟
+                                    </small>
+                                </p>
+                            </div>
+                            <button class="btn btn-danger btn-sm" onclick="stopCurrentTask()">
+                                <i class="bi bi-stop-circle"></i> 结束
+                            </button>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-secondary">
+                        <h6 class="alert-heading">
+                            <i class="bi bi-pause-circle"></i> 空闲状态
+                        </h6>
+                        <p class="mb-0">当前没有正在进行的任务</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 开始新任务 -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-plus-circle"></i> 开始新任务
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="start-task-form">
+                    <div class="mb-3">
+                        <label for="task-name" class="form-label">任务名称</label>
+                        <input type="text" class="form-control" id="task-name" 
+                               placeholder="例如：复习线性代数" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="task-category" class="form-label">任务类别</label>
+                        <select class="form-select" id="task-category">
+                            <option value="study" selected>📚 学习</option>
+                            <option value="game">🎮 游戏</option>
+                            <option value="other">📋 其他</option>
+                        </select>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-play-fill"></i> 开始任务
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 快速开始模板 -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightning-fill"></i> 快速开始
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- 学习任务模板 -->
+                    <div class="col-md-4 mb-3">
+                        <h6 class="text-success">📚 学习任务</h6>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-success btn-sm" 
+                                    onclick="quickStart('复习数学', 'study')">复习数学</button>
+                            <button class="btn btn-outline-success btn-sm" 
+                                    onclick="quickStart('背英语单词', 'study')">背英语单词</button>
+                            <button class="btn btn-outline-success btn-sm" 
+                                    onclick="quickStart('编程练习', 'study')">编程练习</button>
+                            <button class="btn btn-outline-success btn-sm" 
+                                    onclick="quickStart('阅读专业书籍', 'study')">阅读专业书籍</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 游戏娱乐模板 -->
+                    <div class="col-md-4 mb-3">
+                        <h6 class="text-warning">🎮 游戏娱乐</h6>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-warning btn-sm" 
+                                    onclick="quickStart('三角洲行动', 'game')">三角洲行动</button>
+                            <button class="btn btn-outline-warning btn-sm" 
+                                    onclick="quickStart('原神', 'game')">原神</button>
+                            <button class="btn btn-outline-warning btn-sm" 
+                                    onclick="quickStart('Steam游戏', 'game')">Steam游戏</button>
+                            <button class="btn btn-outline-warning btn-sm" 
+                                    onclick="quickStart('看视频', 'game')">看视频</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 其他活动模板 -->
+                    <div class="col-md-4 mb-3">
+                        <h6 class="text-info">📋 其他活动</h6>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-info btn-sm" 
+                                    onclick="quickStart('运动健身', 'other')">运动健身</button>
+                            <button class="btn btn-outline-info btn-sm" 
+                                    onclick="quickStart('整理房间', 'other')">整理房间</button>
+                            <button class="btn btn-outline-info btn-sm" 
+                                    onclick="quickStart('社交聊天', 'other')">社交聊天</button>
+                            <button class="btn btn-outline-info btn-sm" 
+                                    onclick="quickStart('购物', 'other')">购物</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 开始任务表单处理
+document.getElementById('start-task-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const taskName = document.getElementById('task-name').value.trim();
+    const category = document.getElementById('task-category').value;
+    
+    if (!taskName) {
+        showToast('请输入任务名称', 'warning');
+        return;
+    }
+    
+    startTask(taskName, category);
+});
+
+// 开始任务函数
+function startTask(taskName, category) {
+    fetch('/api/start_task', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            task: taskName,
+            category: category
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message, 'success');
+            // 清空表单
+            document.getElementById('task-name').value = '';
+            document.getElementById('task-category').value = 'study';
+            // 刷新页面显示
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('操作失败，请重试', 'danger');
+    });
+}
+
+// 停止当前任务
+function stopCurrentTask() {
+    if (confirm('确定要结束当前任务吗？')) {
+        fetch('/api/stop_task', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(`${data.message}，持续 ${data.duration} 分钟`, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(data.message, 'warning');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('操作失败，请重试', 'danger');
+        });
+    }
+}
+
+// 快速开始任务
+function quickStart(taskName, category) {
+    startTask(taskName, category);
+}
+
+// 更新持续时间显示
+{% if current_session %}
+let startTime = new Date('{{ current_session.start_time }}');
+setInterval(function() {
+    const now = new Date();
+    const duration = Math.floor((now - startTime) / 60000); // 分钟
+    document.getElementById('duration-display').textContent = duration;
+}, 60000); // 每分钟更新一次
+{% endif %}
+
+// 页面加载时更新导航栏状态
+document.addEventListener('DOMContentLoaded', function() {
+    updateNavbarStatus();
+});
+</script>
+{% endblock %}

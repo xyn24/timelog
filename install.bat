@@ -49,7 +49,7 @@ if %errorlevel% equ 0 (
     goto :skip_path
 )
 
-echo � 正在添加到用户环境变量...
+echo 🛠️ 正在添加到用户环境变量...
 
 REM 获取当前用户的PATH变量
 for /f "usebackq tokens=2*" %%A in (`reg query "HKCU\Environment" /v PATH 2^>nul`) do set "USER_PATH=%%B"

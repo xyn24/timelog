@@ -202,15 +202,32 @@ def tasks():
 @app.route('/stats')
 def stats():
     """统计分析页面"""
-    # 从URL参数获取天数，默认为30天
-    days = request.args.get('days', 30, type=int)
+    # 从URL参数获取天数，默认为今天
+    days_param = request.args.get('days', 'today')
     
-    # 限制天数范围
-    if days not in [7, 14, 30, 90]:
-        days = 30
+    # 处理"今天"选项
+    if days_param == 'today':
+        days = 1
+        selected_days = 'today'
+    else:
+        days = int(days_param)
+        selected_days = days
+        # 限制天数范围
+        if days not in [7, 14, 30, 90]:
+            days = 7
+            selected_days = 7
     
     recent_stats = get_recent_stats(days)
-    return render_template('stats.html', recent_stats=recent_stats, selected_days=days)
+    
+    # 如果是"今天"选项，还需要获取7天的趋势数据用于图表
+    trend_stats = None
+    if selected_days == 'today':
+        trend_stats = get_recent_stats(7)
+    
+    return render_template('stats.html', 
+                         recent_stats=recent_stats, 
+                         selected_days=selected_days,
+                         trend_stats=trend_stats)
 
 @app.route('/history')
 def history():
@@ -334,7 +351,14 @@ def current_status():
 @app.route('/api/stats_data')
 def stats_data():
     """获取统计数据 API"""
-    days = request.args.get('days', 7, type=int)
+    days_param = request.args.get('days', 'today')
+    
+    # 处理"今天"选项
+    if days_param == 'today':
+        days = 1
+    else:
+        days = int(days_param)
+    
     stats = get_recent_stats(days)
     return jsonify(stats)
 

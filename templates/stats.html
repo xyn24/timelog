@@ -17,6 +17,7 @@
                     <div class="col-md-6">
                         <label for="statsPeriod" class="form-label">统计周期</label>
                         <select class="form-select" id="statsPeriod" onchange="updatePeriod()">
+                            <option value="today"{% if selected_days == 'today' %} selected{% endif %}>今天</option>
                             <option value="7"{% if selected_days == 7 %} selected{% endif %}>最近7天</option>
                             <option value="14"{% if selected_days == 14 %} selected{% endif %}>最近14天</option>
                             <option value="30"{% if selected_days == 30 %} selected{% endif %}>最近30天</option>
@@ -45,7 +46,11 @@
                 <i class="bi bi-book display-4 text-success"></i>
                 <h6 class="card-title mt-3">学习总时间</h6>
                 <h3 class="text-success" id="totalStudyHours">{{ "%.1f"|format(recent_stats.total_study) }}h</h3>
+                {% if selected_days == 'today' %}
+                <p class="text-muted mb-0">今日学习时间</p>
+                {% else %}
                 <p class="text-muted mb-0">平均每天 {{ "%.1f"|format(recent_stats.total_study / selected_days) }}h</p>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -56,7 +61,11 @@
                 <i class="bi bi-controller display-4 text-warning"></i>
                 <h6 class="card-title mt-3">游戏总时间</h6>
                 <h3 class="text-warning" id="totalGameHours">{{ "%.1f"|format(recent_stats.total_game) }}h</h3>
+                {% if selected_days == 'today' %}
+                <p class="text-muted mb-0">今日游戏时间</p>
+                {% else %}
                 <p class="text-muted mb-0">平均每天 {{ "%.1f"|format(recent_stats.total_game / selected_days) }}h</p>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -67,7 +76,11 @@
                 <i class="bi bi-list-task display-4 text-info"></i>
                 <h6 class="card-title mt-3">其他总时间</h6>
                 <h3 class="text-info" id="totalOtherHours">{{ "%.1f"|format(recent_stats.total_other) }}h</h3>
+                {% if selected_days == 'today' %}
+                <p class="text-muted mb-0">今日其他时间</p>
+                {% else %}
                 <p class="text-muted mb-0">平均每天 {{ "%.1f"|format(recent_stats.total_other / selected_days) }}h</p>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -79,7 +92,11 @@
                 <h6 class="card-title mt-3">总计时间</h6>
                 {% set total_time = recent_stats.total_study + recent_stats.total_game + recent_stats.total_other %}
                 <h3 class="text-primary" id="totalHours">{{ "%.1f"|format(total_time) }}h</h3>
+                {% if selected_days == 'today' %}
+                <p class="text-muted mb-0">今日总时间</p>
+                {% else %}
                 <p class="text-muted mb-0">平均每天 {{ "%.1f"|format(total_time / selected_days) }}h</p>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -113,8 +130,8 @@
     </div>
 
     <!-- 学习效率分析 -->
-    {% set productive_time = recent_stats.total_study + recent_stats.total_game %}
-    {% if productive_time > 0 %}
+    {% set total_time = recent_stats.total_study + recent_stats.total_game + recent_stats.total_other %}
+    {% if total_time > 0 %}
     <div class="col-12 mb-4">
         <div class="card">
             <div class="card-header">
@@ -124,25 +141,36 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span>学习时间占比</span>
-                            <span class="fw-bold text-success">{{ "%.1f"|format((recent_stats.total_study / productive_time * 100)) }}%</span>
+                            <span class="fw-bold text-success">{{ "%.1f"|format((recent_stats.total_study / total_time * 100)) }}%</span>
                         </div>
                         <div class="progress mb-3" style="height: 20px;">
                             <div class="progress-bar bg-success" role="progressbar" 
-                                 style="width: {{ (recent_stats.total_study / productive_time * 100) }}%">
+                                 style="width: {{ (recent_stats.total_study / total_time * 100) }}%">
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span>游戏时间占比</span>
-                            <span class="fw-bold text-warning">{{ "%.1f"|format((recent_stats.total_game / productive_time * 100)) }}%</span>
+                            <span class="fw-bold text-warning">{{ "%.1f"|format((recent_stats.total_game / total_time * 100)) }}%</span>
                         </div>
                         <div class="progress mb-3" style="height: 20px;">
                             <div class="progress-bar bg-warning" role="progressbar" 
-                                 style="width: {{ (recent_stats.total_game / productive_time * 100) }}%">
+                                 style="width: {{ (recent_stats.total_game / total_time * 100) }}%">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>其他时间占比</span>
+                            <span class="fw-bold text-info">{{ "%.1f"|format((recent_stats.total_other / total_time * 100)) }}%</span>
+                        </div>
+                        <div class="progress mb-3" style="height: 20px;">
+                            <div class="progress-bar bg-info" role="progressbar" 
+                                 style="width: {{ (recent_stats.total_other / total_time * 100) }}%">
                             </div>
                         </div>
                     </div>
@@ -151,15 +179,21 @@
                 <hr>
                 
                 <div class="row text-center">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <h6 class="text-muted">学习/游戏比例</h6>
                         <h4 class="text-success">{{ "%.1f"|format((recent_stats.total_study / recent_stats.total_game)) if recent_stats.total_game > 0 else "∞" }}:1</h4>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <h6 class="text-muted">学习效率</h6>
+                        {% set productive_time = recent_stats.total_study + recent_stats.total_game %}
+                        <h4 class="text-success">{{ "%.1f"|format((recent_stats.total_study / productive_time * 100)) if productive_time > 0 else "0" }}%</h4>
+                        <small class="text-muted">学习/(学习+游戏)</small>
+                    </div>
+                    <div class="col-md-3">
                         <h6 class="text-muted">最高单日学习</h6>
                         <h4 class="text-primary" id="maxDailyStudy">{{ "%.1f"|format(recent_stats.max_daily_study) }}h</h4>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <h6 class="text-muted">活跃天数</h6>
                         <h4 class="text-info" id="activeDays">{{ recent_stats.active_days }}天</h4>
                     </div>
@@ -296,7 +330,13 @@ function initCharts() {
 
     // 每日趋势图
     const trendCtx = document.getElementById('trendChart').getContext('2d');
+    
+    // 根据是否是"今天"选项决定使用哪个数据源
+    {% if selected_days == 'today' and trend_stats %}
+    const dailyStats = {{ trend_stats.daily_stats | tojson }};
+    {% else %}
     const dailyStats = {{ recent_stats.daily_stats | tojson }};
+    {% endif %}
     
     // 处理数据 - 确保正确的时间顺序（最早到最新）
     const allDates = Object.keys(dailyStats);

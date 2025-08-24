@@ -1,0 +1,703 @@
+{% extends "base.html" %}
+
+{% block title %}历史记录 - TimeLog{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-journal"></i> 历史记录
+                </h5>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="filterByCategory('all')">
+                        全部
+                    </button>
+                    <button type="button" class="btn btn-outline-success btn-sm" onclick="filterByCategory('study')">
+                        📚 学习
+                    </button>
+                    <button type="button" class="btn btn-outline-warning btn-sm" onclick="filterByCategory('game')">
+                        🎮 游戏
+                    </button>
+                    <button type="button" class="btn btn-outline-info btn-sm" onclick="filterByCategory('other')">
+                        📋 其他
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if sessions %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="10%">开始日期</th>
+                                <th width="10%">开始时间</th>
+                                <th width="10%">结束日期</th>
+                                <th width="10%">结束时间</th>
+                                <th width="28%">任务</th>
+                                <th width="8%">类别</th>
+                                <th width="8%">时长</th>
+                                <th width="16%">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTable">
+                            {% for session in sessions %}
+                            <tr class="session-row" data-category="{{ session.category }}">
+                                <td>
+                                    <span class="text-muted">
+                                        {{ session.date }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <small class="text-primary">
+                                        <i class="bi bi-play-circle"></i>
+                                        {{ session.start_time }}
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if session.end_date %}
+                                    <span class="text-muted">
+                                        {% if session.end_date != session.date %}
+                                        <span class="badge bg-warning text-dark">
+                                            {{ session.end_date }}
+                                        </span>
+                                        {% else %}
+                                        {{ session.end_date }}
+                                        {% endif %}
+                                    </span>
+                                    {% else %}
+                                    <small class="text-warning">
+                                        进行中
+                                    </small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if session.end_time %}
+                                    <small class="text-danger">
+                                        <i class="bi bi-stop-circle"></i>
+                                        {{ session.end_time }}
+                                    </small>
+                                    {% else %}
+                                    <small class="text-warning">
+                                        <i class="bi bi-clock"></i>
+                                        --:--
+                                    </small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <strong>{{ session.task }}</strong>
+                                </td>
+                                <td>
+                                    {% if session.category == 'study' %}
+                                        <span class="badge bg-success">📚 学习</span>
+                                    {% elif session.category == 'game' %}
+                                        <span class="badge bg-warning">🎮 游戏</span>
+                                    {% elif session.category == 'other' %}
+                                        <span class="badge bg-info">📋 其他</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ session.category }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if session.duration_hours %}
+                                    <span class="fw-bold text-primary">
+                                        {{ "%.1f"|format(session.duration_hours) }}h
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-primary btn-sm" 
+                                                onclick="editSession({{ session.original_index }})" 
+                                                title="编辑任务">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm" 
+                                                onclick="deleteSession({{ session.original_index }})" 
+                                                title="删除任务">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 分页信息 -->
+                <div class="row mt-3">
+                    <div class="col-sm-6">
+                        <p class="text-muted mb-0">
+                            显示 {{ sessions|length }} 条记录
+                        </p>
+                    </div>
+                    <div class="col-sm-6 text-end">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-success btn-sm" onclick="createNewSession()" title="创建新任务">
+                                <i class="bi bi-plus-circle"></i> 新建任务
+                            </button>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-download"></i> 导出数据
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#" onclick="exportData('csv-utf8')">
+                                        <i class="bi bi-file-earmark-spreadsheet"></i> CSV (UTF-8+BOM)
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="exportDataServer('csv', 'gbk')">
+                                        <i class="bi bi-file-earmark-spreadsheet"></i> CSV (GBK，兼容Excel)
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="exportDataServer('json', 'utf-8')">
+                                        <i class="bi bi-file-earmark-code"></i> JSON
+                                    </a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="#" onclick="exportData('csv-gbk')">
+                                        <i class="bi bi-file-earmark-spreadsheet"></i> CSV (前端生成)
+                                    </a></li>
+                                </ul>
+                            </div>
+                            <button class="btn btn-outline-danger btn-sm" onclick="confirmClearData()" title="清空所有历史数据">
+                                <i class="bi bi-trash"></i> 清空历史
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-journal-x display-4 text-muted"></i>
+                    <h4 class="mt-3 text-muted">暂无历史记录</h4>
+                    <p class="text-muted">开始记录您的第一个任务吧！</p>
+                    <a href="{{ url_for('tasks') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> 开始任务
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 统计摘要卡片 -->
+{% if sessions %}
+<div class="row mt-4">
+    <div class="col-md-3 mb-3">
+        <div class="card bg-success bg-opacity-10 border-success">
+            <div class="card-body text-center">
+                <i class="bi bi-book display-6 text-success"></i>
+                <h6 class="card-title mt-2">学习总时间</h6>
+                <h4 class="text-success" id="totalStudyTime">-</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card bg-warning bg-opacity-10 border-warning">
+            <div class="card-body text-center">
+                <i class="bi bi-controller display-6 text-warning"></i>
+                <h6 class="card-title mt-2">游戏总时间</h6>
+                <h4 class="text-warning" id="totalGameTime">-</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card bg-info bg-opacity-10 border-info">
+            <div class="card-body text-center">
+                <i class="bi bi-list-task display-6 text-info"></i>
+                <h6 class="card-title mt-2">其他总时间</h6>
+                <h4 class="text-info" id="totalOtherTime">-</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card bg-primary bg-opacity-10 border-primary">
+            <div class="card-body text-center">
+                <i class="bi bi-clock display-6 text-primary"></i>
+                <h6 class="card-title mt-2">总计时间</h6>
+                <h4 class="text-primary" id="totalTime">-</h4>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 编辑任务模态框 -->
+<div class="modal fade" id="editSessionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editModalTitle">编辑任务</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editSessionForm">
+                    <input type="hidden" id="editSessionId">
+                    
+                    <div class="mb-3">
+                        <label for="editTaskName" class="form-label">任务名称</label>
+                        <input type="text" class="form-control" id="editTaskName" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="editCategory" class="form-label">任务类别</label>
+                        <select class="form-select" id="editCategory" required>
+                            <option value="study">📚 学习</option>
+                            <option value="game">🎮 游戏</option>
+                            <option value="other">📋 其他</option>
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editStartDate" class="form-label">开始日期</label>
+                                <input type="date" class="form-control" id="editStartDate" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editStartTime" class="form-label">开始时间</label>
+                                <input type="time" class="form-control" id="editStartTime" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editEndDate" class="form-label">结束日期</label>
+                                <input type="date" class="form-control" id="editEndDate">
+                                <div class="form-text">留空表示任务正在进行中</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editEndTime" class="form-label">结束时间</label>
+                                <input type="time" class="form-control" id="editEndTime">
+                                <div class="form-text">支持跨天任务</div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="saveSessionBtn" onclick="saveSession()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 页面加载后计算统计
+document.addEventListener('DOMContentLoaded', function() {
+    updateNavbarStatus();
+    calculateTotals();
+});
+
+// 按分类筛选
+function filterByCategory(category) {
+    const rows = document.querySelectorAll('.session-row');
+    const buttons = document.querySelectorAll('.btn-group .btn');
+    
+    // 更新按钮状态
+    buttons.forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // 筛选行
+    rows.forEach(row => {
+        if (category === 'all' || row.dataset.category === category) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    calculateTotals();
+}
+
+// 计算总计时间
+function calculateTotals() {
+    const visibleRows = document.querySelectorAll('.session-row[style=""], .session-row:not([style])');
+    let studyTotal = 0, gameTotal = 0, otherTotal = 0;
+    
+    visibleRows.forEach(row => {
+        const category = row.dataset.category;
+        const durationCell = row.cells[6];  // 时长列现在是第7列（索引6）
+        const durationText = durationCell.textContent.trim();
+        
+        if (durationText !== '-') {
+            const hours = parseFloat(durationText.replace('h', ''));
+            if (!isNaN(hours)) {
+                switch(category) {
+                    case 'study': studyTotal += hours; break;
+                    case 'game': gameTotal += hours; break;
+                    case 'other': otherTotal += hours; break;
+                }
+            }
+        }
+    });
+    
+    const totalTime = studyTotal + gameTotal + otherTotal;
+    
+    // 更新显示（检查元素是否存在）
+    const studyEl = document.getElementById('totalStudyTime');
+    const gameEl = document.getElementById('totalGameTime');
+    const otherEl = document.getElementById('totalOtherTime');
+    const totalEl = document.getElementById('totalTime');
+    
+    if (studyEl) studyEl.textContent = studyTotal.toFixed(1) + 'h';
+    if (gameEl) gameEl.textContent = gameTotal.toFixed(1) + 'h';
+    if (otherEl) otherEl.textContent = otherTotal.toFixed(1) + 'h';
+    if (totalEl) totalEl.textContent = totalTime.toFixed(1) + 'h';
+}
+
+// 导出数据功能
+function exportData(format = 'csv-utf8') {
+    const visibleRows = document.querySelectorAll('.session-row[style=""], .session-row:not([style])');
+    const data = [];
+    
+    // 收集数据
+    visibleRows.forEach(row => {
+        const cells = row.cells;
+        const rowData = {
+            startDate: cells[0].textContent.trim(),
+            startTime: cells[1].textContent.trim().replace(/.*(\d{2}:\d{2}).*/, '$1'),
+            endDate: cells[2].textContent.trim(),
+            endTime: cells[3].textContent.trim().replace(/.*(\d{2}:\d{2}).*/, '$1'),
+            task: cells[4].textContent.trim(),
+            category: cells[5].textContent.trim(),
+            duration: cells[6].textContent.trim()
+        };
+        data.push(rowData);
+    });
+    
+    if (data.length === 0) {
+        showNotification('❌ 没有数据可导出', 'error');
+        return;
+    }
+    
+    const timestamp = new Date().toISOString().split('T')[0];
+    
+    if (format === 'json') {
+        // JSON格式导出
+        const jsonData = {
+            exportDate: new Date().toISOString(),
+            totalRecords: data.length,
+            data: data
+        };
+        
+        const blob = new Blob([JSON.stringify(jsonData, null, 2)], { 
+            type: 'application/json;charset=utf-8;' 
+        });
+        downloadFile(blob, `timelog_history_${timestamp}.json`);
+        showNotification('✅ JSON数据导出成功！', 'success');
+        
+    } else if (format === 'csv-gbk') {
+        // GBK编码的CSV（兼容Excel）
+        let csvContent = "开始日期,开始时间,结束日期,结束时间,任务,类别,时长(小时)\n";
+        
+        data.forEach(row => {
+            csvContent += `"${row.startDate}","${row.startTime}","${row.endDate}","${row.endTime}","${row.task}","${row.category}","${row.duration}"\n`;
+        });
+        
+        // 注意：实际的GBK编码转换在浏览器中比较复杂，这里提供一个变通方案
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=gbk;' });
+        downloadFile(blob, `timelog_history_${timestamp}_gbk.csv`);
+        showNotification('✅ CSV数据导出成功！如果Excel中仍有乱码，请在Excel中使用"数据"->"从文本"导入，并选择UTF-8编码。', 'success');
+        
+    } else {
+        // UTF-8+BOM编码的CSV（默认）
+        let csvContent = "开始日期,开始时间,结束日期,结束时间,任务,类别,时长(小时)\n";
+        
+        data.forEach(row => {
+            csvContent += `"${row.startDate}","${row.startTime}","${row.endDate}","${row.endTime}","${row.task}","${row.category}","${row.duration}"\n`;
+        });
+        
+        // 添加BOM以确保Excel正确识别UTF-8编码
+        const BOM = '\uFEFF';
+        const csvWithBOM = BOM + csvContent;
+        
+        const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
+        downloadFile(blob, `timelog_history_${timestamp}.csv`);
+        showNotification('✅ CSV数据导出成功！添加了BOM标记以改善Excel兼容性。', 'success');
+    }
+}
+
+// 通用文件下载函数
+function downloadFile(blob, filename) {
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+// 服务器端导出（更好的中文支持）
+function exportDataServer(format = 'csv', encoding = 'utf-8') {
+    const url = `/api/export_data?format=${format}&encoding=${encoding}`;
+    
+    // 显示加载提示
+    showNotification('📥 正在生成导出文件...', 'info');
+    
+    // 创建隐藏的链接来触发下载
+    const link = document.createElement('a');
+    link.href = url;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // 延迟显示成功消息
+    setTimeout(() => {
+        if (format === 'json') {
+            showNotification('✅ JSON数据导出成功！', 'success');
+        } else {
+            if (encoding === 'gbk') {
+                showNotification('✅ CSV数据导出成功！使用GBK编码，应该能在Excel中正确显示中文。', 'success');
+            } else {
+                showNotification('✅ CSV数据导出成功！使用UTF-8编码，添加了BOM标记。', 'success');
+            }
+        }
+    }, 500);
+}
+
+// 确认清空数据
+function confirmClearData() {
+    // 使用Bootstrap模态框或者浏览器确认框
+    const confirmed = confirm(
+        '⚠️ 警告：此操作将永久删除所有历史数据！\n\n' +
+        '包括：\n' +
+        '• 所有任务记录\n' +
+        '• 所有统计数据\n' +
+        '• 当前正在进行的任务\n\n' +
+        '此操作无法撤销，确定要继续吗？'
+    );
+    
+    if (confirmed) {
+        const doubleConfirm = confirm(
+            '🔴 最后确认：您真的要删除所有数据吗？\n\n' +
+            '删除后将无法恢复！'
+        );
+        
+        if (doubleConfirm) {
+            clearAllData();
+        }
+    }
+}
+
+// 执行清空数据
+function clearAllData() {
+    // 显示加载状态
+    const clearBtn = event.target;
+    const originalText = clearBtn.innerHTML;
+    clearBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 清空中...';
+    clearBtn.disabled = true;
+    
+    fetch('/api/clear_data', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 显示成功消息
+            showNotification('✅ ' + data.message, 'success');
+            
+            // 延迟刷新页面
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            showNotification('❌ 清空失败: ' + (data.message || '未知错误'), 'error');
+            clearBtn.innerHTML = originalText;
+            clearBtn.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('❌ 清空失败: 网络错误', 'error');
+        clearBtn.innerHTML = originalText;
+        clearBtn.disabled = false;
+    });
+}
+
+// 显示通知消息
+function showNotification(message, type = 'info') {
+    // 创建通知元素
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // 添加到页面
+    document.body.appendChild(notification);
+    
+    // 3秒后自动移除
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 3000);
+}
+
+// 编辑任务
+function editSession(sessionId) {
+    fetch(`/api/get_session/${sessionId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const session = data.session;
+                
+                // 填充表单
+                document.getElementById('editSessionId').value = sessionId;
+                document.getElementById('editTaskName').value = session.task;
+                document.getElementById('editCategory').value = session.category;
+                document.getElementById('editStartDate').value = session.start_date;
+                document.getElementById('editStartTime').value = session.start_time;
+                document.getElementById('editEndDate').value = session.end_date || '';
+                document.getElementById('editEndTime').value = session.end_time || '';
+                
+                // 更新模态框标题
+                document.getElementById('editModalTitle').textContent = '编辑任务';
+                
+                // 显示模态框
+                const modal = new bootstrap.Modal(document.getElementById('editSessionModal'));
+                modal.show();
+            } else {
+                showNotification('❌ 获取任务信息失败: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('❌ 网络错误', 'error');
+        });
+}
+
+// 创建新任务
+function createNewSession() {
+    // 清空表单
+    document.getElementById('editSessionForm').reset();
+    document.getElementById('editSessionId').value = '';
+    
+    // 设置默认值
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const currentTime = now.toTimeString().slice(0, 5);
+    
+    document.getElementById('editStartDate').value = today;
+    document.getElementById('editStartTime').value = currentTime;
+    document.getElementById('editCategory').value = 'study';
+    
+    // 更新模态框标题
+    document.getElementById('editModalTitle').textContent = '新建任务';
+    
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('editSessionModal'));
+    modal.show();
+}
+
+// 保存任务
+function saveSession() {
+    const sessionId = document.getElementById('editSessionId').value;
+    const isNewSession = sessionId === '';
+    
+    const formData = {
+        task: document.getElementById('editTaskName').value,
+        category: document.getElementById('editCategory').value,
+        start_date: document.getElementById('editStartDate').value,
+        start_time: document.getElementById('editStartTime').value,
+        end_date: document.getElementById('editEndDate').value,
+        end_time: document.getElementById('editEndTime').value
+    };
+    
+    // 验证表单
+    if (!formData.task || !formData.category || !formData.start_date || !formData.start_time) {
+        showNotification('❌ 请填写所有必需字段', 'error');
+        return;
+    }
+    
+    const saveBtn = document.getElementById('saveSessionBtn');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 保存中...';
+    saveBtn.disabled = true;
+    
+    const url = isNewSession ? '/api/create_session' : `/api/update_session/${sessionId}`;
+    
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('✅ ' + data.message, 'success');
+            
+            // 隐藏模态框
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editSessionModal'));
+            modal.hide();
+            
+            // 刷新页面
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        } else {
+            showNotification('❌ 保存失败: ' + data.message, 'error');
+        }
+        
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('❌ 网络错误', 'error');
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    });
+}
+
+// 删除任务
+function deleteSession(sessionId) {
+    const confirmed = confirm('确定要删除这个任务吗？\n\n删除后将无法恢复！');
+    
+    if (confirmed) {
+        fetch(`/api/delete_session/${sessionId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('✅ ' + data.message, 'success');
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                showNotification('❌ 删除失败: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('❌ 网络错误', 'error');
+        });
+    }
+}
+</script>
+{% endblock %}

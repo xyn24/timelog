@@ -1,0 +1,502 @@
+{% extends "base.html" %}
+
+{% block title %}统计分析 - TimeLog{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 时间范围选择 -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-graph-up"></i> 统计分析
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="statsPeriod" class="form-label">统计周期</label>
+                        <select class="form-select" id="statsPeriod" onchange="updatePeriod()">
+                            <option value="today"{% if selected_days == 'today' %} selected{% endif %}>今天</option>
+                            <option value="7"{% if selected_days == 7 %} selected{% endif %}>最近7天</option>
+                            <option value="14"{% if selected_days == 14 %} selected{% endif %}>最近14天</option>
+                            <option value="30"{% if selected_days == 30 %} selected{% endif %}>最近30天</option>
+                            <option value="90"{% if selected_days == 90 %} selected{% endif %}>最近90天</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-primary" onclick="refreshStats()">
+                                <i class="bi bi-arrow-clockwise"></i> 刷新数据
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="confirmClearData()" title="清空所有历史数据">
+                                <i class="bi bi-trash"></i> 清空数据
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 总体统计卡片 -->
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card bg-success bg-opacity-10 border-success h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-book display-4 text-success"></i>
+                <h6 class="card-title mt-3">学习总时间</h6>
+                <h3 class="text-success" id="totalStudyHours">{{ "%.1f"|format(recent_stats.total_study) }}h</h3>
+                {% if selected_days == 'today' %}
+                <p class="text-muted mb-0">今日学习时间</p>
+                {% else %}
+                <p class="text-muted mb-0">平均每天 {{ "%.1f"|format(recent_stats.total_study / selected_days) }}h</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card bg-warning bg-opacity-10 border-warning h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-controller display-4 text-warning"></i>
+                <h6 class="card-title mt-3">游戏总时间</h6>
+                <h3 class="text-warning" id="totalGameHours">{{ "%.1f"|format(recent_stats.total_game) }}h</h3>
+                {% if selected_days == 'today' %}
+                <p class="text-muted mb-0">今日游戏时间</p>
+                {% else %}
+                <p class="text-muted mb-0">平均每天 {{ "%.1f"|format(recent_stats.total_game / selected_days) }}h</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card bg-info bg-opacity-10 border-info h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-list-task display-4 text-info"></i>
+                <h6 class="card-title mt-3">其他总时间</h6>
+                <h3 class="text-info" id="totalOtherHours">{{ "%.1f"|format(recent_stats.total_other) }}h</h3>
+                {% if selected_days == 'today' %}
+                <p class="text-muted mb-0">今日其他时间</p>
+                {% else %}
+                <p class="text-muted mb-0">平均每天 {{ "%.1f"|format(recent_stats.total_other / selected_days) }}h</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card bg-primary bg-opacity-10 border-primary h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-clock display-4 text-primary"></i>
+                <h6 class="card-title mt-3">总计时间</h6>
+                {% set total_time = recent_stats.total_study + recent_stats.total_game + recent_stats.total_other %}
+                <h3 class="text-primary" id="totalHours">{{ "%.1f"|format(total_time) }}h</h3>
+                {% if selected_days == 'today' %}
+                <p class="text-muted mb-0">今日总时间</p>
+                {% else %}
+                <p class="text-muted mb-0">平均每天 {{ "%.1f"|format(total_time / selected_days) }}h</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 时间分布饼图 -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-pie-chart"></i> 时间分布
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="distributionChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- 每日趋势图 -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-graph-up"></i> 每日趋势
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="trendChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- 学习效率分析 -->
+    {% set total_time = recent_stats.total_study + recent_stats.total_game + recent_stats.total_other %}
+    {% if total_time > 0 %}
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-speedometer2"></i> 学习效率分析
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>学习时间占比</span>
+                            <span class="fw-bold text-success">{{ "%.1f"|format((recent_stats.total_study / total_time * 100)) }}%</span>
+                        </div>
+                        <div class="progress mb-3" style="height: 20px;">
+                            <div class="progress-bar bg-success" role="progressbar" 
+                                 style="width: {{ (recent_stats.total_study / total_time * 100) }}%">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>游戏时间占比</span>
+                            <span class="fw-bold text-warning">{{ "%.1f"|format((recent_stats.total_game / total_time * 100)) }}%</span>
+                        </div>
+                        <div class="progress mb-3" style="height: 20px;">
+                            <div class="progress-bar bg-warning" role="progressbar" 
+                                 style="width: {{ (recent_stats.total_game / total_time * 100) }}%">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>其他时间占比</span>
+                            <span class="fw-bold text-info">{{ "%.1f"|format((recent_stats.total_other / total_time * 100)) }}%</span>
+                        </div>
+                        <div class="progress mb-3" style="height: 20px;">
+                            <div class="progress-bar bg-info" role="progressbar" 
+                                 style="width: {{ (recent_stats.total_other / total_time * 100) }}%">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h6 class="text-muted">学习/游戏比例</h6>
+                        <h4 class="text-success">{{ "%.1f"|format((recent_stats.total_study / recent_stats.total_game)) if recent_stats.total_game > 0 else "∞" }}:1</h4>
+                    </div>
+                    <div class="col-md-3">
+                        <h6 class="text-muted">学习效率</h6>
+                        {% set productive_time = recent_stats.total_study + recent_stats.total_game %}
+                        <h4 class="text-success">{{ "%.1f"|format((recent_stats.total_study / productive_time * 100)) if productive_time > 0 else "0" }}%</h4>
+                        <small class="text-muted">学习/(学习+游戏)</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h6 class="text-muted">最高单日学习</h6>
+                        <h4 class="text-primary" id="maxDailyStudy">{{ "%.1f"|format(recent_stats.max_daily_study) }}h</h4>
+                    </div>
+                    <div class="col-md-3">
+                        <h6 class="text-muted">活跃天数</h6>
+                        <h4 class="text-info" id="activeDays">{{ recent_stats.active_days }}天</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 详细每日统计表格 -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-calendar3"></i> 每日详细统计
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_stats.daily_stats %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>日期</th>
+                                <th>📚 学习</th>
+                                <th>🎮 游戏</th>
+                                <th>📋 其他</th>
+                                <th>总计</th>
+                                <th>学习占比</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for date, stats in recent_stats.daily_stats.items() %}
+                            {% set daily_total = stats.study + stats.game + stats.other %}
+                            <tr>
+                                <td>
+                                    <strong>{{ date }}</strong>
+                                    {% if date == "今天" %}
+                                    <span class="badge bg-primary ms-1">今天</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="text-success fw-bold">{{ "%.1f"|format(stats.study) }}h</span>
+                                </td>
+                                <td>
+                                    <span class="text-warning fw-bold">{{ "%.1f"|format(stats.game) }}h</span>
+                                </td>
+                                <td>
+                                    <span class="text-info fw-bold">{{ "%.1f"|format(stats.other) }}h</span>
+                                </td>
+                                <td>
+                                    <span class="text-primary fw-bold">{{ "%.1f"|format(daily_total) }}h</span>
+                                </td>
+                                <td>
+                                    {% if daily_total > 0 %}
+                                    <span class="text-success">{{ "%.0f"|format((stats.study / daily_total * 100)) }}%</span>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-graph-down display-4 text-muted"></i>
+                    <h4 class="mt-3 text-muted">暂无统计数据</h4>
+                    <p class="text-muted">开始记录时间来查看统计信息</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 页面加载后初始化图表
+document.addEventListener('DOMContentLoaded', function() {
+    updateNavbarStatus();
+    initCharts();
+});
+
+// 初始化图表
+function initCharts() {
+    // 时间分布饼图
+    const distributionCtx = document.getElementById('distributionChart').getContext('2d');
+    const studyHours = {{ recent_stats.total_study }};
+    const gameHours = {{ recent_stats.total_game }};
+    const otherHours = {{ recent_stats.total_other }};
+    
+    new Chart(distributionCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['📚 学习', '🎮 游戏', '📋 其他'],
+            datasets: [{
+                data: [studyHours, gameHours, otherHours],
+                backgroundColor: [
+                    'rgba(25, 135, 84, 0.8)',
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(13, 202, 240, 0.8)'
+                ],
+                borderColor: [
+                    'rgb(25, 135, 84)',
+                    'rgb(255, 193, 7)',
+                    'rgb(13, 202, 240)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label;
+                            const value = context.parsed;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
+                            return `${label}: ${value.toFixed(1)}h (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // 每日趋势图
+    const trendCtx = document.getElementById('trendChart').getContext('2d');
+    
+    // 根据是否是"今天"选项决定使用哪个数据源
+    {% if selected_days == 'today' and trend_stats %}
+    const dailyStats = {{ trend_stats.daily_stats | tojson }};
+    {% else %}
+    const dailyStats = {{ recent_stats.daily_stats | tojson }};
+    {% endif %}
+    
+    // 处理数据 - 确保正确的时间顺序（最早到最新）
+    const allDates = Object.keys(dailyStats);
+    
+    // 自定义排序函数，确保日期按正确顺序排列
+    const dates = allDates.sort((a, b) => {
+        // "今天"应该在最后
+        if (a === "今天") return 1;
+        if (b === "今天") return -1;
+        
+        // "昨天"应该在倒数第二
+        if (a === "昨天") return 1;
+        if (b === "昨天") return -1;
+        
+        // 其他日期按字符串排序（MM-DD格式）
+        return a.localeCompare(b);
+    });
+    
+    const studyData = dates.map(date => dailyStats[date].study);
+    const gameData = dates.map(date => dailyStats[date].game);
+    const otherData = dates.map(date => dailyStats[date].other);
+    
+    new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [{
+                label: '📚 学习',
+                data: studyData,
+                borderColor: 'rgb(25, 135, 84)',
+                backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                tension: 0.4
+            }, {
+                label: '🎮 游戏',
+                data: gameData,
+                borderColor: 'rgb(255, 193, 7)',
+                backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                tension: 0.4
+            }, {
+                label: '📋 其他',
+                data: otherData,
+                borderColor: 'rgb(13, 202, 240)',
+                backgroundColor: 'rgba(13, 202, 240, 0.1)',
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '时间 (小时)'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}h`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// 更新统计周期
+function updatePeriod() {
+    const period = document.getElementById('statsPeriod').value;
+    // 这里可以添加AJAX请求来获取新的统计数据
+    // 暂时只刷新页面
+    window.location.href = `/stats?days=${period}`;
+}
+
+// 刷新统计数据
+function refreshStats() {
+    location.reload();
+}
+
+// 确认清空数据
+function confirmClearData() {
+    const confirmed = confirm(
+        '⚠️ 警告：此操作将永久删除所有历史数据！\n\n' +
+        '包括：\n' +
+        '• 所有任务记录\n' +
+        '• 所有统计数据\n' +
+        '• 当前正在进行的任务\n\n' +
+        '此操作无法撤销，确定要继续吗？'
+    );
+    
+    if (confirmed) {
+        const doubleConfirm = confirm(
+            '🔴 最后确认：您真的要删除所有数据吗？\n\n' +
+            '删除后将无法恢复！'
+        );
+        
+        if (doubleConfirm) {
+            clearAllData();
+        }
+    }
+}
+
+// 执行清空数据
+function clearAllData() {
+    const clearBtn = event.target;
+    const originalText = clearBtn.innerHTML;
+    clearBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 清空中...';
+    clearBtn.disabled = true;
+    
+    fetch('/api/clear_data', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('✅ ' + data.message, 'success');
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            showNotification('❌ 清空失败: ' + (data.message || '未知错误'), 'error');
+            clearBtn.innerHTML = originalText;
+            clearBtn.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('❌ 清空失败: 网络错误', 'error');
+        clearBtn.innerHTML = originalText;
+        clearBtn.disabled = false;
+    });
+}
+
+// 显示通知消息
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 3000);
+}
+</script>
+{% endblock %}

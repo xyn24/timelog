@@ -5,6 +5,19 @@ echo Starting TimeLog Release Build...
 :: 激活虚拟环境
 call timelog_env\Scripts\activate.bat
 
+:: 验证环境激活
+echo Current Python: %VIRTUAL_ENV%
+echo Python executable: 
+python -c "import sys; print(sys.executable)"
+
+:: 确保pyinstaller已安装
+echo Checking PyInstaller installation...
+pip show pyinstaller >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Installing PyInstaller...
+    pip install pyinstaller
+)
+
 :: 清理之前的构建文件
 echo Cleaning previous build files...
 if exist build rmdir /s /q build

@@ -23,8 +23,8 @@ echo.
 echo 📦 2. 安装依赖包...
 
 REM 在虚拟环境中安装依赖
-echo 🔧 正在安装 click 和 flask...
-timelog_env\Scripts\pip.exe install click flask
+echo 🔧 正在安装 click, flask, reportlab 和 matplotlib...
+timelog_env\Scripts\pip.exe install click flask reportlab matplotlib
 if %errorlevel% neq 0 (
     echo ❌ 依赖安装失败！请检查网络连接
     pause

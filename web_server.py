@@ -12,6 +12,7 @@ from collections import defaultdict
 import webbrowser
 import threading
 import time
+from io import BytesIO
 
 # 复用 timelog_simple.py 中的数据处理函数
 DATA_FILE = os.path.expanduser("~/.timelog.json")
@@ -678,6 +679,370 @@ def export_data():
         filename = f'timelog_export_{datetime.now().strftime("%Y%m%d")}.csv'
         response.headers['Content-Disposition'] = f'attachment; filename={filename}'
         return response
+
+@app.route('/api/export_pdf')
+def export_pdf():
+    """导出统计数据为PDF"""
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import inch, mm
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image as ReportLabImage
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib import colors
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.graphics.shapes import Drawing, Circle, Rect, String
+        from reportlab.graphics.charts.piecharts import Pie
+        from reportlab.graphics.charts.barcharts import VerticalBarChart
+        from reportlab.graphics import renderPDF
+        import matplotlib
+        matplotlib.use('Agg')  # 使用非交互式后端
+        import matplotlib.pyplot as plt
+        import matplotlib.font_manager as fm
+        from io import BytesIO
+        import base64
+        
+        # 注册中文字体
+        try:
+            # Windows 系统字体路径
+            font_paths = [
+                "C:/Windows/Fonts/msyh.ttc",  # 微软雅黑
+                "C:/Windows/Fonts/simhei.ttf",  # 黑体
+                "C:/Windows/Fonts/simsun.ttc"   # 宋体
+            ]
+            
+            chinese_font = 'Helvetica'  # 默认字体
+            for font_path in font_paths:
+                if os.path.exists(font_path):
+                    try:
+                        pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
+                        chinese_font = 'ChineseFont'
+                        break
+                    except:
+                        continue
+        except:
+            chinese_font = 'Helvetica'
+        
+        # 设置matplotlib中文字体
+        try:
+            plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'DejaVu Sans']
+            plt.rcParams['axes.unicode_minus'] = False
+        except:
+            pass
+        
+    except ImportError as e:
+        missing_libs = []
+        if 'reportlab' in str(e):
+            missing_libs.append('reportlab')
+        if 'matplotlib' in str(e):
+            missing_libs.append('matplotlib')
+        return jsonify({"success": False, "message": f"PDF功能需要安装库: pip install {' '.join(missing_libs)}"})
+    
+    # 获取参数
+    days_param = request.args.get('days', 'today')
+    
+    # 处理"今天"选项
+    if days_param == 'today':
+        days = 1
+        selected_days = 'today'
+        period_name = "今天"
+    else:
+        days = int(days_param)
+        selected_days = days
+        period_name = f"最近{days}天"
+    
+    # 获取统计数据
+    recent_stats = get_recent_stats(days)
+    
+    # 获取详细任务数据
+    data = load_data()
+    sessions = data.get("sessions", [])
+    cutoff_date = datetime.now() - timedelta(days=days if selected_days != 'today' else 1)
+    
+    if selected_days == 'today':
+        # 今天的任务
+        today_date = date.today()
+        detailed_sessions = [s for s in sessions 
+                           if datetime.fromisoformat(s["start"]).date() == today_date]
+    else:
+        # 指定天数内的任务
+        detailed_sessions = [s for s in sessions 
+                           if datetime.fromisoformat(s["start"]) >= cutoff_date]
+    
+    # 按时间排序
+    detailed_sessions.sort(key=lambda x: x["start"], reverse=True)
+    
+    # 创建PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=A4, 
+        rightMargin=50, 
+        leftMargin=50, 
+        topMargin=50, 
+        bottomMargin=50
+    )
+    
+    # 自定义样式
+    styles = getSampleStyleSheet()
+    
+    # 标题样式
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Title'],
+        fontName=chinese_font,
+        fontSize=28,
+        spaceAfter=30,
+        alignment=1,  # 居中
+        textColor=colors.HexColor('#2C3E50'),
+        borderWidth=1,
+        borderColor=colors.HexColor('#3498DB'),
+        borderRadius=5,
+        backColor=colors.HexColor('#ECF0F1'),
+        borderPadding=20
+    )
+    
+    # 副标题样式
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        parent=styles['Normal'],
+        fontName=chinese_font,
+        fontSize=14,
+        spaceAfter=20,
+        alignment=1,
+        textColor=colors.HexColor('#7F8C8D')
+    )
+    
+    # 章节标题样式
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading1'],
+        fontName=chinese_font,
+        fontSize=18,
+        spaceAfter=15,
+        spaceBefore=20,
+        textColor=colors.HexColor('#2980B9'),
+        borderWidth=0,
+        borderColor=colors.HexColor('#3498DB'),
+        backColor=colors.HexColor('#F8F9FA'),
+        leftIndent=10,
+        borderPadding=8
+    )
+    
+    # 正文样式
+    normal_style = ParagraphStyle(
+        'CustomNormal',
+        parent=styles['Normal'],
+        fontName=chinese_font,
+        fontSize=11,
+        spaceAfter=8,
+        leading=16
+    )
+    
+    # 重点文本样式
+    highlight_style = ParagraphStyle(
+        'Highlight',
+        parent=styles['Normal'],
+        fontName=chinese_font,
+        fontSize=12,
+        textColor=colors.HexColor('#E74C3C'),
+        spaceAfter=6
+    )
+    
+    # 构建PDF内容
+    story = []
+    
+    # 封面
+    story.append(Spacer(1, 50))
+    story.append(Paragraph("TimeLog 统计报告", title_style))
+    story.append(Spacer(1, 20))
+    story.append(Paragraph(f"统计周期：{period_name} | 生成时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}", subtitle_style))
+    story.append(Spacer(1, 60))
+    
+    # 创建时间分布饼图
+    total_time = recent_stats['total_study'] + recent_stats['total_game'] + recent_stats['total_other']
+    if total_time > 0:
+        # 添加饼图标题
+        story.append(Paragraph("时间分布统计", heading_style))
+        story.append(Spacer(1, 15))
+        
+        fig, ax = plt.subplots(figsize=(10, 10))  # 增大figure尺寸
+        # 调整子图位置，为标题留更多空间
+        plt.subplots_adjust(top=0.85, bottom=0.15, left=0.15, right=0.85)
+        
+        sizes = [recent_stats['total_study'], recent_stats['total_game'], recent_stats['total_other']]
+        labels = ['学习', '游戏', '其他']
+        colors_pie = ['#3498DB', '#E74C3C', '#F39C12']
+        
+        # 只显示非零的部分
+        non_zero_data = [(size, label, color) for size, label, color in zip(sizes, labels, colors_pie) if size > 0]
+        if non_zero_data:
+            sizes_nz, labels_nz, colors_nz = zip(*non_zero_data)
+            
+            wedges, texts, autotexts = ax.pie(sizes_nz, labels=labels_nz, colors=colors_nz, 
+                                             autopct='%1.1f%%', startangle=90,
+                                             textprops={'fontsize': 28})  # 进一步增大标签字体
+            ax.set_title(f'{period_name}时间分布', fontsize=32, fontweight='bold', pad=40)  # 进一步增大标题字体
+            ax.set_aspect('equal')  # 确保饼图为正圆
+            
+            # 美化饼图 - 进一步增大所有字体
+            for text in texts:
+                text.set_fontsize(26)  # 进一步增大标签字体
+                text.set_fontweight('bold')
+                
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(24)  # 进一步增大百分比字体
+        
+        # 不使用tight_layout，手动控制布局
+        img_buffer = BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches=None,  # 使用None而不是tight
+                   facecolor='white', edgecolor='none')  # 确保背景和边缘设置
+        img_buffer.seek(0)
+        plt.close()
+        
+        # 将图片添加到PDF，调整合适尺寸
+        img_size = 400  # 稍微缩小饼图尺寸
+        story.append(ReportLabImage(img_buffer, width=img_size, height=img_size))
+        story.append(Spacer(1, 30))
+    
+    # 每日统计图表
+    if recent_stats['daily_stats']:
+        story.append(Paragraph("每日时间趋势", heading_style))
+        story.append(Spacer(1, 15))
+        
+        # 创建每日统计柱状图
+        fig, ax = plt.subplots(figsize=(12, 8))  # 增大纵向尺寸从6到8
+        
+        # 准备数据
+        dates = list(recent_stats['daily_stats'].keys())
+        study_hours = [recent_stats['daily_stats'][date]['study'] for date in dates]
+        game_hours = [recent_stats['daily_stats'][date]['game'] for date in dates]
+        other_hours = [recent_stats['daily_stats'][date]['other'] for date in dates]
+        
+        # 设置柱状图
+        x = range(len(dates))
+        width = 0.6
+        
+        # 堆叠柱状图
+        bars1 = ax.bar(x, study_hours, width, label='学习', color='#3498DB', alpha=0.8)
+        bars2 = ax.bar(x, game_hours, width, bottom=study_hours, label='游戏', color='#E74C3C', alpha=0.8)
+        bars3 = ax.bar(x, other_hours, width, bottom=[i+j for i,j in zip(study_hours, game_hours)], 
+                      label='其他', color='#F39C12', alpha=0.8)
+        
+        # 设置标签和标题
+        ax.set_xlabel('日期', fontsize=18, fontweight='bold')  # 增大X轴标签字体
+        ax.set_ylabel('时间(小时)', fontsize=18, fontweight='bold')  # 增大Y轴标签字体
+        ax.set_title('每日时间分布趋势', fontsize=22, fontweight='bold', pad=25)  # 增大标题字体
+        ax.set_xticks(x)
+        ax.set_xticklabels(dates, rotation=45 if len(dates) > 7 else 0, fontsize=16)  # 增大X轴刻度字体
+        ax.legend(fontsize=16)  # 增大图例字体
+        
+        # 设置Y轴刻度字体
+        ax.tick_params(axis='y', labelsize=14)
+        
+        # 添加数值标签
+        for i, (study, game, other) in enumerate(zip(study_hours, game_hours, other_hours)):
+            total = study + game + other
+            if total > 0:
+                ax.text(i, total + 0.1, f'{total:.1f}h', ha='center', va='bottom', 
+                       fontweight='bold', fontsize=14)  # 增大数值标签字体
+        
+        # 美化图表
+        ax.grid(True, alpha=0.3, axis='y')
+        ax.set_ylim(0, max([sum([s, g, o]) for s, g, o in zip(study_hours, game_hours, other_hours)]) * 1.1)
+        
+        plt.tight_layout()
+        img_buffer = BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close()
+        
+        # 将图片添加到PDF，增大纵向尺寸
+        story.append(ReportLabImage(img_buffer, width=500, height=333))  # 增大高度，保持12:8的比例
+        story.append(Spacer(1, 20))
+    
+    # 详细任务记录
+    if detailed_sessions:
+        story.append(Paragraph("详细任务记录", heading_style))
+        story.append(Spacer(1, 15))
+        
+        task_data = [['开始时间', '结束时间', '任务名称', '类别', '时长', '状态']]
+        
+        for session in detailed_sessions[:20]:  # 只显示最近20个任务
+            start_time = datetime.fromisoformat(session["start"])
+            category_map = {'study': '学习', 'game': '游戏', 'other': '其他'}
+            category_display = category_map.get(session["category"], session["category"])
+            
+            if session.get("end"):
+                end_time = datetime.fromisoformat(session["end"])
+                duration = calculate_duration(session["start"], session["end"])
+                status = "已完成"
+                end_time_str = end_time.strftime("%H:%M")
+                duration_str = f"{duration:.0f}分钟"
+            else:
+                duration = (datetime.now() - start_time).total_seconds() / 60
+                status = "进行中"
+                end_time_str = "-"
+                duration_str = f"{duration:.0f}分钟"
+            
+            # 任务名称截取（避免过长）
+            task_name = session["task"]
+            if len(task_name) > 15:
+                task_name = task_name[:12] + "..."
+            
+            task_data.append([
+                start_time.strftime("%m-%d %H:%M"),
+                end_time_str,
+                task_name,
+                category_display,
+                duration_str,
+                status
+            ])
+        
+        task_table = Table(task_data, colWidths=[80, 70, 110, 70, 70, 80])  # 稍微增大列宽
+        task_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#D35400')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), chinese_font),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),  # 增大表头字体
+            ('FONTSIZE', (0, 1), (-1, -1), 12),  # 增大内容字体
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 15),  # 增大表头底部间距
+            ('TOPPADDING', (0, 0), (-1, 0), 12),  # 增加表头顶部间距
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 10),  # 增加内容行底部间距
+            ('TOPPADDING', (0, 1), (-1, -1), 10),  # 增加内容行顶部间距
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#FDF2E9')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#BDC3C7')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#FDF2E9')])
+        ]))
+        
+        story.append(task_table)
+        
+        if len(detailed_sessions) > 20:
+            story.append(Spacer(1, 10))
+            story.append(Paragraph(f"... 还有 {len(detailed_sessions) - 20} 个任务记录", normal_style))
+    
+    # 页脚信息
+    story.append(Spacer(1, 30))
+    story.append(Paragraph("───────────────────────────────────────", subtitle_style))
+    story.append(Paragraph("本报告由 TimeLog 自动生成 | 持续改进，追求卓越", subtitle_style))
+    
+    # 生成PDF
+    doc.build(story)
+    buffer.seek(0)
+    
+    # 返回PDF文件
+    if selected_days == 'today':
+        filename = f'timelog_report_today_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf'
+    else:
+        filename = f'timelog_report_{days}days_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf'
+    
+    response = Response(buffer.getvalue(), mimetype='application/pdf')
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 if __name__ == '__main__':
     run_server()

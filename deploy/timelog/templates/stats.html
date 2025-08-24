@@ -29,6 +29,9 @@
                             <button class="btn btn-primary" onclick="refreshStats()">
                                 <i class="bi bi-arrow-clockwise"></i> 刷新数据
                             </button>
+                            <button class="btn btn-success" onclick="exportPDF()">
+                                <i class="bi bi-file-earmark-pdf"></i> 导出PDF
+                            </button>
                             <button class="btn btn-outline-danger" onclick="confirmClearData()" title="清空所有历史数据">
                                 <i class="bi bi-trash"></i> 清空数据
                             </button>
@@ -421,6 +424,34 @@ function updatePeriod() {
 // 刷新统计数据
 function refreshStats() {
     location.reload();
+}
+
+// 导出PDF
+function exportPDF() {
+    const period = document.getElementById('statsPeriod').value;
+    const exportBtn = event.target.closest('button');
+    const originalText = exportBtn.innerHTML;
+    
+    exportBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 导出中...';
+    exportBtn.disabled = true;
+    
+    // 创建下载链接
+    const downloadUrl = `/api/export_pdf?days=${period}`;
+    
+    // 创建隐藏的链接并触发下载
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // 恢复按钮状态
+    setTimeout(() => {
+        exportBtn.innerHTML = originalText;
+        exportBtn.disabled = false;
+        showNotification('✅ PDF导出完成！', 'success');
+    }, 1000);
 }
 
 // 确认清空数据

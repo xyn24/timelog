@@ -754,6 +754,12 @@ def export_pdf():
     # 获取统计数据
     recent_stats = get_recent_stats(days)
     
+    # 为"今天"选项单独获取7天趋势数据
+    if selected_days == 'today':
+        trend_stats = get_recent_stats(7)  # 获取7天数据用于趋势图
+    else:
+        trend_stats = recent_stats  # 其他选项使用相同数据
+    
     # 获取详细任务数据
     data = load_data()
     sessions = data.get("sessions", [])
@@ -908,18 +914,18 @@ def export_pdf():
         story.append(Spacer(1, 30))
     
     # 每日统计图表
-    if recent_stats['daily_stats']:
+    if trend_stats['daily_stats']:
         story.append(Paragraph("每日时间趋势", heading_style))
         story.append(Spacer(1, 15))
         
         # 创建每日统计柱状图
         fig, ax = plt.subplots(figsize=(12, 8))  # 增大纵向尺寸从6到8
         
-        # 准备数据
-        dates = list(recent_stats['daily_stats'].keys())
-        study_hours = [recent_stats['daily_stats'][date]['study'] for date in dates]
-        game_hours = [recent_stats['daily_stats'][date]['game'] for date in dates]
-        other_hours = [recent_stats['daily_stats'][date]['other'] for date in dates]
+        # 准备数据 - 使用trend_stats
+        dates = list(trend_stats['daily_stats'].keys())
+        study_hours = [trend_stats['daily_stats'][date]['study'] for date in dates]
+        game_hours = [trend_stats['daily_stats'][date]['game'] for date in dates]
+        other_hours = [trend_stats['daily_stats'][date]['other'] for date in dates]
         
         # 设置柱状图
         x = range(len(dates))

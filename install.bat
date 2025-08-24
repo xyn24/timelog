@@ -60,7 +60,12 @@ if "%USER_PATH%"=="" (
     reg add "HKCU\Environment" /v PATH /t REG_EXPAND_SZ /d "%CURRENT_DIR%" /f >nul 2>&1
 ) else (
     echo 添加到现有PATH...
-    reg add "HKCU\Environment" /v PATH /t REG_EXPAND_SZ /d "%USER_PATH%;%CURRENT_DIR%" /f >nul 2>&1
+    REM 检查PATH是否以分号结尾，避免双分号
+    if "%USER_PATH:~-1%"==";" (
+        reg add "HKCU\Environment" /v PATH /t REG_EXPAND_SZ /d "%USER_PATH%%CURRENT_DIR%" /f >nul 2>&1
+    ) else (
+        reg add "HKCU\Environment" /v PATH /t REG_EXPAND_SZ /d "%USER_PATH%;%CURRENT_DIR%" /f >nul 2>&1
+    )
 )
 
 if %errorlevel% equ 0 (

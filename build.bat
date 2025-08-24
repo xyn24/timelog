@@ -160,10 +160,19 @@ echo ^)
 echo.
 echo :: 添加到PATH
 echo echo 正在将 TimeLog 目录添加到 PATH 环境变量...
+echo :: 检查PATH是否以分号结尾，避免双分号
 echo if "%%SCOPE%%"=="MACHINE" ^(
-echo     reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v PATH /t REG_EXPAND_SZ /d "%%CURRENT_PATH%%;%%TIMELOG_DIR%%" /f ^>nul
+echo     if "%%CURRENT_PATH:~-1%%"==";" ^(
+echo         reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v PATH /t REG_EXPAND_SZ /d "%%CURRENT_PATH%%%%TIMELOG_DIR%%" /f ^>nul
+echo     ^) else ^(
+echo         reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v PATH /t REG_EXPAND_SZ /d "%%CURRENT_PATH%%;%%TIMELOG_DIR%%" /f ^>nul
+echo     ^)
 echo ^) else ^(
-echo     reg add "HKCU\Environment" /v PATH /t REG_EXPAND_SZ /d "%%CURRENT_PATH%%;%%TIMELOG_DIR%%" /f ^>nul
+echo     if "%%CURRENT_PATH:~-1%%"==";" ^(
+echo         reg add "HKCU\Environment" /v PATH /t REG_EXPAND_SZ /d "%%CURRENT_PATH%%%%TIMELOG_DIR%%" /f ^>nul
+echo     ^) else ^(
+echo         reg add "HKCU\Environment" /v PATH /t REG_EXPAND_SZ /d "%%CURRENT_PATH%%;%%TIMELOG_DIR%%" /f ^>nul
+echo     ^)
 echo ^)
 echo.
 echo if %%errorlevel%% equ 0 ^(
